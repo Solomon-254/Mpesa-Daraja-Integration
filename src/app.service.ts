@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import axios from 'axios';
 import * as dotenv from 'dotenv';
 
-
- 
 
 dotenv.config();
 @Injectable()
@@ -19,7 +16,6 @@ export class PaymentsService {
   private stkPushUrl = process.env.MPESA_STK_PUSH_URL;
   private queryTransactionUrl = process.env.MPESA_STK_QUERY_URL;
 
-
   private consumerKey = process.env.CONSUMER_KEY;
   private consumerSecret = process.env.CONSUMER_SECRET;
   private mpesaAuthUrl = process.env.MPESA_AUTH_URL;
@@ -30,11 +26,13 @@ export class PaymentsService {
     ).toString('base64');
 
     try {
-      const response = await axios.get(this.mpesaAuthUrl, {
-        headers: {
-          Authorization: `Basic ${buffer}`,
-        },
-      });
+      const response = await this.httpService
+        .get(this.mpesaAuthUrl, {
+          headers: {
+            Authorization: `Basic ${buffer}`,
+          },
+        })
+        .toPromise();
 
       const token = response.data.access_token;
       this.logger.log('Token from api', token);
@@ -45,51 +43,46 @@ export class PaymentsService {
     }
   }
 
-
   async generateSTKPush(phoneNumber: string, amount: number, token: string, quoteId: string) {
     const timestamp = this.getCurrentKenyanTimestamp();
     const password = Buffer.from(
-      `${this.bussinessShortCode}${this.passKey}${timestamp}`
+      `${this.bussinessShortCode}${this.passKey}${timestamp}`,
     ).toString('base64');
     const stkPushUrl = this.stkPushUrl;
     const callBackUrl = 'https://britamquotations-gi-prd.azurewebsites.net/api/payments/callback';
 
     try {
-      const stkPushResponse = await axios.post(
-        stkPushUrl,
-        {
-          BusinessShortCode: this.bussinessShortCode,
-          Password: password,
-          Timestamp: timestamp,
-          TransactionType: 'CustomerPayBillOnline',
-          Amount: amount,
-          PartyA: phoneNumber,
-          PartyB: this.bussinessShortCode,
-          PhoneNumber: phoneNumber,
-          CallBackURL: callBackUrl,
-          AccountReference: quoteId,
-          // AccountReference: 'Account Reference',
-
-          TransactionDesc: 'Test Payment',
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+      const stkPushResponse = await this.httpService
+        .post(
+          stkPushUrl,
+          {
+            BusinessShortCode: this.bussinessShortCode,
+            Password: password,
+            Timestamp: timestamp,
+            TransactionType: 'CustomerPayBillOnline',
+            Amount: amount,
+            PartyA: phoneNumber,
+            PartyB: this.bussinessShortCode,
+            PhoneNumber: phoneNumber,
+            CallBackURL: callBackUrl,
+            AccountReference: quoteId,
+            TransactionDesc: 'Test Payment',
           },
-        }
-      );
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        )
+        .toPromise();
       this.logger.log('STK Push response:', stkPushResponse.data);
-      // Handle the callback response
       return stkPushResponse.data;
     } catch (error) {
       console.error('Error generating STK push:', error.response.data);
       throw error;
     }
   }
-
-  
-
 
   getCurrentKenyanTimestamp = (): string => {
     const kenyanTimezone = 'Africa/Nairobi';
@@ -109,42 +102,36 @@ export class PaymentsService {
     return timestamp;
   };
 
-
-  // Query Mpesa Transaction
-  async confirmsMpesaPayment(checkoutRequestID: string, token:string) {
+  async confirmsMpesaPayment(checkoutRequestID: string, token: string) {
     const timestamp = this.getCurrentKenyanTimestamp();
     const password = Buffer.from(
-      `${this.bussinessShortCode}${this.passKey}${timestamp}`
+      `${this.bussinessShortCode}${this.passKey}${timestamp}`,
     ).toString('base64');
     const queryResponseUrl = this.queryTransactionUrl;
 
     try {
-      const queryResponse = await axios.post(
-        queryResponseUrl,
-        {
-          BusinessShortCode: this.bussinessShortCode,
-          Password: password,
-          Timestamp: timestamp,
-          CheckoutRequestID: checkoutRequestID
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+      const queryResponse = await this.httpService
+        .post(
+          queryResponseUrl,
+          {
+            BusinessShortCode: this.bussinessShortCode,
+            Password: password,
+            Timestamp: timestamp,
+            CheckoutRequestID: checkoutRequestID,
           },
-        }
-      );
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        )
+        .toPromise();
       this.logger.log('Query Results:', queryResponse.data);
-      // Handle the callback response
       return queryResponse.data;
     } catch (error) {
       console.error('Error querying transaction:', error.response.data);
       throw error;
     }
   }
-
-  
-  
-
-  
 }
